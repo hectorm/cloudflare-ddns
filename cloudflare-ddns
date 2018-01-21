@@ -1,0 +1,56 @@
+#!/bin/sh
+
+set -eu
+
+# Get these from: https://www.cloudflare.com/a/account/my-account
+AUTH_EMAIL='<cloudflare-auth-email>'
+AUTH_KEY='<cloudflare-auth-key>'
+
+# Get the Zone ID from: https://www.cloudflare.com/a/overview/<your-domain>
+DNS_ZONE='<your-dns-zone>'
+
+# Get the existing identifier for DNS entry:
+# https://api.cloudflare.com/#dns-records-for-a-zone-list-dns-records
+IDENTIFIER='<your-domain-dns-entry-identifier>'
+
+# Desired domain name
+DOMAIN_NAME='<subdomain>.<your-domain>'
+
+# Get previous IP address
+_PREV_IP_FILE='/tmp/public-ip.txt'
+_PREV_IP=$(cat "${_PREV_IP_FILE}" 2>/dev/null) || true
+
+# Install `dig` via `dnsutils` for faster IP lookup.
+command -v dig >/dev/null 2>&1 && {
+	_IP=$(dig +short myip.opendns.com @resolver1.opendns.com)
+} || {
+	_IP=$(curl --silent https://ifconfig.co)
+} || {
+	exit 1
+}
+
+# If new/previous IPs match, no need for an update.
+if [ "${_IP}" = "${_PREV_IP}" ]; then
+	exit 0
+fi
+
+_UPDATE=$(cat <<-EOF
+	{
+	  "type": "A",
+	  "name": "$DOMAIN_NAME",
+	  "content": "$_IP",
+	  "ttl": 300,
+	  "proxied": false
+	}
+EOF
+)
+
+curl "https://api.cloudflare.com/client/v4/zones/${DNS_ZONE}/dns_records/${IDENTIFIER}" \
+	--silent \
+	--request 'PUT' \
+	--header 'Content-Type: application/json' \
+	--header "X-Auth-Email: ${AUTH_EMAIL}" \
+	--header "X-Auth-Key: ${AUTH_KEY}" \
+	--data "${_UPDATE}" > '/tmp/cloudflare-ddns-update.json' \
+	&& printf -- '%s\n' "${_IP}" > "${_PREV_IP_FILE}" \
+	&& printf -- '%s\n' "Updated IP address: ${_IP}"

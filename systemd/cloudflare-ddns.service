@@ -1,0 +1,6 @@
+[Unit]
+Description=Cloudflare DDNS
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/cloudflare-ddns
