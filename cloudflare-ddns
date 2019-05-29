@@ -16,6 +16,24 @@ printInfo() { printf -- '[INFO] %s\n' "$@"; }
 printWarn() { >&2 printf -- '[WARN] %s\n' "$@"; }
 printError() { >&2 printf -- '[ERROR] %s\n' "$@"; }
 
+# Get previous IP address.
+_PREV_IP_FILE='/tmp/cloudflare-ddns-public-ip.txt'
+_PREV_IP=$(cat "${_PREV_IP_FILE}" 2>/dev/null) || true
+
+# Install "dig" via "dnsutils" for faster IP lookup.
+command -v dig >/dev/null 2>&1 && {
+	_IP=$(dig +short myip.opendns.com @resolver1.opendns.com)
+} || {
+	_IP=$(curl --silent --fail --show-error https://ifconfig.co)
+} || {
+	exit 1
+}
+
+# If new/previous IPs match, no need for an update.
+if [ "${_IP}" = "${_PREV_IP}" ]; then
+	exit 0
+fi
+
 # Retrieve CLOUDFLARE_DNS_ZONE_ID if not defined.
 if [ -z "${CLOUDFLARE_DNS_ZONE_ID}" ]; then
 	CLOUDFLARE_DNS_ZONE_ID=$(
@@ -50,25 +68,7 @@ if [ -z "${CLOUDFLARE_DNS_RECORD_ID}" ]; then
 	fi
 fi
 
-# Get previous IP address.
-_PREV_IP_FILE='/tmp/cloudflare-ddns-public-ip.txt'
-_PREV_IP=$(cat "${_PREV_IP_FILE}" 2>/dev/null) || true
-
-# Install "dig" via "dnsutils" for faster IP lookup.
-command -v dig >/dev/null 2>&1 && {
-	_IP=$(dig +short myip.opendns.com @resolver1.opendns.com)
-} || {
-	_IP=$(curl --silent --fail --show-error https://ifconfig.co)
-} || {
-	exit 1
-}
-
-# If new/previous IPs match, no need for an update.
-if [ "${_IP}" = "${_PREV_IP}" ]; then
-	exit 0
-fi
-
-# Update DNS Record
+# Update DNS Record.
 _UPDATE_FILE="/tmp/cloudflare-ddns-${CLOUDFLARE_DNS_RECORD}.json"
 _UPDATE=$(cat <<-EOF
 	{ "type": "A", "name": "${CLOUDFLARE_DNS_RECORD}", "content": "${_IP}", "ttl": 1, "proxied": false }
