@@ -1,0 +1,11 @@
+version: "3.7"
+
+services:
+
+  cloudflare-ddns:
+    image: hectormolinero/supercronic:latest
+    restart: on-failure:3
+    volumes:
+      - "./crontab:/etc/crontab:ro"
+      - "../cloudflare-ddns:/usr/local/bin/cloudflare-ddns:ro"
+    env_file: .env
