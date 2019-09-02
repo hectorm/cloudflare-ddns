@@ -69,7 +69,7 @@ if [ -z "${CLOUDFLARE_DNS_RECORD_ID}" ]; then
 fi
 
 # Update DNS Record.
-_UPDATE_FILE="/tmp/cloudflare-ddns-${CLOUDFLARE_DNS_RECORD}.json"
+_UPDATE_FILE=/tmp/cloudflare-ddns-${CLOUDFLARE_DNS_RECORD}.json
 _UPDATE=$(cat <<-EOF
 	{ "type": "A", "name": "${CLOUDFLARE_DNS_RECORD}", "content": "${_IP}", "ttl": 1, "proxied": false }
 EOF
