@@ -8,4 +8,10 @@ services:
     volumes:
       - "./crontab:/etc/crontab:ro"
       - "../cloudflare-ddns:/usr/local/bin/cloudflare-ddns:ro"
-    env_file: ".env"
+    environment:
+      CLOUDFLARE_EMAIL: "${CLOUDFLARE_EMAIL}"
+      CLOUDFLARE_API_KEY: "${CLOUDFLARE_API_KEY}"
+      CLOUDFLARE_DNS_ZONE: "${CLOUDFLARE_DNS_ZONE}"
+      CLOUDFLARE_DNS_ZONE_ID: "${CLOUDFLARE_DNS_ZONE_ID}"
+      CLOUDFLARE_DNS_RECORD: "${CLOUDFLARE_DNS_RECORD}"
+      CLOUDFLARE_DNS_RECORD_ID: "${CLOUDFLARE_DNS_RECORD_ID}"
