@@ -3,8 +3,7 @@
 set -eu
 export LC_ALL=C
 
-CLOUDFLARE_EMAIL=${CLOUDFLARE_EMAIL:?}
-CLOUDFLARE_API_KEY=${CLOUDFLARE_API_KEY:?}
+CLOUDFLARE_TOKEN=${CLOUDFLARE_TOKEN:?}
 
 CLOUDFLARE_DNS_ZONE=${CLOUDFLARE_DNS_ZONE:?}
 CLOUDFLARE_DNS_ZONE_ID=${CLOUDFLARE_DNS_ZONE_ID:-}
@@ -17,68 +16,67 @@ printWarn() { >&2 printf -- '[WARN] %s\n' "$@"; }
 printError() { >&2 printf -- '[ERROR] %s\n' "$@"; }
 
 # Get previous IP address.
-_PREV_IP_FILE='/tmp/cloudflare-ddns-public-ip.txt'
-_PREV_IP=$(cat "${_PREV_IP_FILE}" 2>/dev/null) || true
+PREV_IP_FILE='/tmp/cloudflare-ddns-public-ip.txt'
+PREV_IP=$(cat "${PREV_IP_FILE:?}" 2>/dev/null) ||:
 
 # Install "dig" via "dnsutils" for faster IP lookup.
 command -v dig >/dev/null 2>&1 && {
-	_IP=$(dig +short myip.opendns.com @resolver1.opendns.com)
+	CURR_IP=$(dig @1.1.1.1 whoami.cloudflare CH TXT +short | tr -d '"')
 } || {
-	_IP=$(curl --silent --fail --show-error https://ifconfig.co)
+	CURR_IP=$(curl -X 'GET' -sSf --proto '=https' --tlsv1.2 'https://ifconfig.co')
 } || {
 	exit 1
 }
 
-# If new/previous IPs match, no need for an update.
-if [ "${_IP}" = "${_PREV_IP}" ]; then
+# If previous and current IP match, no update is needed.
+if [ "${CURR_IP:?}" = "${PREV_IP:-}" ]; then
 	exit 0
 fi
 
 # Retrieve CLOUDFLARE_DNS_ZONE_ID if not defined.
-if [ -z "${CLOUDFLARE_DNS_ZONE_ID}" ]; then
+if [ -z "${CLOUDFLARE_DNS_ZONE_ID:-}" ]; then
 	CLOUDFLARE_DNS_ZONE_ID=$(
-		curl "https://api.cloudflare.com/client/v4/zones?name=${CLOUDFLARE_DNS_ZONE}" \
-			--silent --fail --show-error --request 'GET' --header 'Content-Type: application/json' \
-			--header "X-Auth-Email: ${CLOUDFLARE_EMAIL}" --header "X-Auth-Key: ${CLOUDFLARE_API_KEY}" \
+		curl "https://api.cloudflare.com/client/v4/zones?name=${CLOUDFLARE_DNS_ZONE:?}" \
+			-X 'GET' -sSf --proto '=https' --tlsv1.2 \
+			-H "Authorization: Bearer ${CLOUDFLARE_TOKEN:?}" \
+			-H 'Content-Type: application/json' \
 		| jq -r '.result[0].id'
 	)
 
-	if [ "${CLOUDFLARE_DNS_ZONE_ID}" = 'null' ]; then
+	if [ -z "${CLOUDFLARE_DNS_ZONE_ID:-}" ] || [ "${CLOUDFLARE_DNS_ZONE_ID:?}" = 'null' ]; then
 		printError "'CLOUDFLARE_DNS_ZONE_ID' is null."
 		exit 1
 	else
-		printWarn "'CLOUDFLARE_DNS_ZONE_ID' is not defined, set its value to '${CLOUDFLARE_DNS_ZONE_ID}' to avoid extra API requests."
+		printWarn "'CLOUDFLARE_DNS_ZONE_ID' is not defined, set its value to '${CLOUDFLARE_DNS_ZONE_ID:?}' to avoid extra API requests."
 	fi
 fi
 
 # Retrieve CLOUDFLARE_DNS_RECORD_ID if not defined.
-if [ -z "${CLOUDFLARE_DNS_RECORD_ID}" ]; then
+if [ -z "${CLOUDFLARE_DNS_RECORD_ID:-}" ]; then
 	CLOUDFLARE_DNS_RECORD_ID=$(
-		curl "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_DNS_ZONE_ID}/dns_records?type=A&name=${CLOUDFLARE_DNS_RECORD}" \
-			--silent --fail --show-error --request 'GET' --header 'Content-Type: application/json' \
-			--header "X-Auth-Email: ${CLOUDFLARE_EMAIL}" --header "X-Auth-Key: ${CLOUDFLARE_API_KEY}" \
+		curl "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_DNS_ZONE_ID:?}/dns_records?type=A&name=${CLOUDFLARE_DNS_RECORD:?}" \
+			-X 'GET' -sSf --proto '=https' --tlsv1.2 \
+			-H "Authorization: Bearer ${CLOUDFLARE_TOKEN:?}" \
+			-H 'Content-Type: application/json' \
 		| jq -r '.result[0].id'
 	)
 
-	if [ "${CLOUDFLARE_DNS_RECORD_ID}" = 'null' ]; then
+	if [ -z "${CLOUDFLARE_DNS_RECORD_ID:-}" ] || [ "${CLOUDFLARE_DNS_RECORD_ID:?}" = 'null' ]; then
 		printError "'CLOUDFLARE_DNS_RECORD_ID' is null."
 		exit 1
 	else
-		printWarn "'CLOUDFLARE_DNS_RECORD_ID' is not defined, set its value to '${CLOUDFLARE_DNS_RECORD_ID}' to avoid extra API requests."
+		printWarn "'CLOUDFLARE_DNS_RECORD_ID' is not defined, set its value to '${CLOUDFLARE_DNS_RECORD_ID:?}' to avoid extra API requests."
 	fi
 fi
 
 # Update DNS Record.
-_UPDATE_FILE=/tmp/cloudflare-ddns-${CLOUDFLARE_DNS_RECORD}.json
-_UPDATE=$(cat <<-EOF
-	{ "type": "A", "name": "${CLOUDFLARE_DNS_RECORD}", "content": "${_IP}", "ttl": 1, "proxied": false }
-EOF
-)
-curl "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_DNS_ZONE_ID}/dns_records/${CLOUDFLARE_DNS_RECORD_ID}" \
-	--silent --fail --show-error --request 'PUT' --header 'Content-Type: application/json' \
-	--header "X-Auth-Email: ${CLOUDFLARE_EMAIL}" --header "X-Auth-Key: ${CLOUDFLARE_API_KEY}" \
-	--data "${_UPDATE}" > "${_UPDATE_FILE}"
+curl "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_DNS_ZONE_ID:?}/dns_records/${CLOUDFLARE_DNS_RECORD_ID:?}" \
+	-X 'PUT' -sSf --proto '=https' --tlsv1.2 \
+	-H "Authorization: Bearer ${CLOUDFLARE_TOKEN:?}" \
+	-H 'Content-Type: application/json' \
+	-d '{"type": "A", "name": "'"${CLOUDFLARE_DNS_RECORD:?}"'", "content": "'"${CURR_IP:?}"'", "ttl": 1, "proxied": false}' \
+	-o /dev/null
 
 # Set new IP address.
-printf -- '%s\n' "${_IP}" > "${_PREV_IP_FILE}"
-printInfo "Updated IP address to ${_IP}"
+printf -- '%s\n' "${CURR_IP:?}" > "${PREV_IP_FILE:?}"
+printInfo "Updated IP address to ${CURR_IP:?}"
