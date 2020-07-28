@@ -47,7 +47,7 @@ if [ -z "${CLOUDFLARE_DNS_ZONE_ID:-}" ]; then
 		printError "'CLOUDFLARE_DNS_ZONE_ID' is null."
 		exit 1
 	else
-		printWarn "'CLOUDFLARE_DNS_ZONE_ID' is not defined, set its value to '${CLOUDFLARE_DNS_ZONE_ID:?}' to avoid extra API requests."
+		printWarn "'CLOUDFLARE_DNS_ZONE_ID' is not defined, set its value to \"${CLOUDFLARE_DNS_ZONE_ID:?}\" to avoid extra API requests."
 	fi
 fi
 
@@ -65,7 +65,7 @@ if [ -z "${CLOUDFLARE_DNS_RECORD_ID:-}" ]; then
 		printError "'CLOUDFLARE_DNS_RECORD_ID' is null."
 		exit 1
 	else
-		printWarn "'CLOUDFLARE_DNS_RECORD_ID' is not defined, set its value to '${CLOUDFLARE_DNS_RECORD_ID:?}' to avoid extra API requests."
+		printWarn "'CLOUDFLARE_DNS_RECORD_ID' is not defined, set its value to \"${CLOUDFLARE_DNS_RECORD_ID:?}\" to avoid extra API requests."
 	fi
 fi
 
@@ -79,4 +79,4 @@ curl "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_DNS_ZONE_ID:?}/dns
 
 # Set new IP address.
 printf -- '%s\n' "${CURR_IP:?}" > "${PREV_IP_FILE:?}"
-printInfo "Updated IP address to ${CURR_IP:?}"
+printInfo "Updated IP address to \"${CURR_IP:?}\"."
