@@ -4,4 +4,5 @@ Description=Cloudflare DDNS
 [Service]
 Type=oneshot
 EnvironmentFile=-/etc/cloudflare-ddns
-ExecStart=/usr/local/bin/cloudflare-ddns
+ExecStart=/usr/bin/env cloudflare-ddns
+DynamicUser=true

@@ -5,86 +5,89 @@
 # License:    MIT, https://opensource.org/licenses/MIT
 
 set -eu
-export LC_ALL=C
+export LC_ALL='C'
 
-CLOUDFLARE_TOKEN=${CLOUDFLARE_TOKEN:?}
+CF_ENDPOINT="${CF_ENDPOINT:-https://api.cloudflare.com/client/v4}"
 
-CLOUDFLARE_DNS_ZONE=${CLOUDFLARE_DNS_ZONE:?}
-CLOUDFLARE_DNS_ZONE_ID=${CLOUDFLARE_DNS_ZONE_ID:-}
+CF_API_TOKEN="${CF_API_TOKEN:-}"
+CF_DNS_API_TOKEN="${CF_DNS_API_TOKEN:-${CF_API_TOKEN:-}}"
+CF_ZONE_API_TOKEN="${CF_ZONE_API_TOKEN:-${CF_API_TOKEN:-}}"
 
-CLOUDFLARE_DNS_RECORD=${CLOUDFLARE_DNS_RECORD:?}
-CLOUDFLARE_DNS_RECORD_ID=${CLOUDFLARE_DNS_RECORD_ID:-}
+CF_ZONE_NAME="${CF_ZONE_NAME:?}"
+CF_ZONE_ID="${CF_ZONE_ID:-}"
 
-printInfo() { [ -t 1 ] && printf -- '\033[0m[\033[1;32mINFO\033[0m] %s\n' "$@" || printf -- '[INFO] %s\n' "$@"; }
-printWarn() { [ -t 1 ] && printf -- '\033[0m[\033[1;33mWARN\033[0m] %s\n' "$@" >&2 || printf -- '[WARN] %s\n' "$@" >&2; }
-printError() { [ -t 1 ] && printf -- '\033[0m[\033[1;31mERROR\033[0m] %s\n' "$@" >&2 || printf -- '[ERROR] %s\n' "$@" >&2; }
+CF_DNS_RECORD_NAME="${CF_DNS_RECORD_NAME:?}"
+CF_DNS_RECORD_ID="${CF_DNS_RECORD_ID:-}"
+
+printInfo() { [ -t 1 ] && printf '\033[0m[\033[1;32mINFO\033[0m] %s\n' "$@" || printf '[INFO] %s\n' "$@"; }
+printWarn() { [ -t 1 ] && printf '\033[0m[\033[1;33mWARN\033[0m] %s\n' "$@" >&2 || printf '[WARN] %s\n' "$@" >&2; }
+printError() { [ -t 1 ] && printf '\033[0m[\033[1;31mERROR\033[0m] %s\n' "$@" >&2 || printf '[ERROR] %s\n' "$@" >&2; }
 
 main() {
-	# Get previous IP address.
-	PREV_IP_FILE='/tmp/cloudflare-ddns-public-ip'
-	PREV_IP=$(cat "${PREV_IP_FILE:?}" 2>/dev/null) ||:
+	# Get current and previous IP address.
+	if command -v kdig >/dev/null 2>&1; then
+		CURR_IP="$(kdig @1.1.1.1 +tls-ca +tls-host=cloudflare-dns.com whoami.cloudflare CH TXT +short | tr -d '"')"
+		PREV_IP="$(kdig @1.1.1.1 +tls-ca +tls-host=cloudflare-dns.com "${CF_DNS_RECORD_NAME:?}" A +short | tr -d '"')"
+	else
+		CURR_IP="$(dig @1.1.1.1 whoami.cloudflare CH TXT +short | tr -d '"')"
+		PREV_IP="$(dig @1.1.1.1 "${CF_DNS_RECORD_NAME:?}" A +short | tr -d '"')"
+	fi
 
-	# Prefer dig for faster IP lookups.
-	command -v dig >/dev/null 2>&1 && {
-		CURR_IP=$(dig @1.1.1.1 whoami.cloudflare CH TXT +short | tr -d '"')
-	} || {
-		CURR_IP=$(curl -X 'GET' -sSf --proto '=https' --tlsv1.2 'https://ifconfig.co')
-	} || {
-		exit 1
-	}
-
-	# If previous and current IP match, no update is needed.
+	# If current and previous IP address match, no update is needed.
 	if [ "${CURR_IP:?}" = "${PREV_IP:-}" ]; then
 		exit 0
 	fi
 
-	# Retrieve CLOUDFLARE_DNS_ZONE_ID if not defined.
-	if [ -z "${CLOUDFLARE_DNS_ZONE_ID:-}" ]; then
-		CLOUDFLARE_DNS_ZONE_ID=$(
-			curl "https://api.cloudflare.com/client/v4/zones?name=${CLOUDFLARE_DNS_ZONE:?}" \
-				-X 'GET' -sSf --proto '=https' --tlsv1.2 \
-				-H "Authorization: Bearer ${CLOUDFLARE_TOKEN:?}" \
+	# Retrieve CF_ZONE_ID if not defined.
+	if [ -z "${CF_ZONE_ID:-}" ]; then
+		CF_ZONE_ID="$(
+			curl "${CF_ENDPOINT:?}/zones?name=${CF_ZONE_NAME:?}" \
+				-X 'GET' -sSf --proto '=https' --tlsv1.3 \
+				-H "Authorization: Bearer ${CF_ZONE_API_TOKEN:?}" \
 				-H 'Content-Type: application/json' \
 			| jq -r '.result[0].id'
-		)
+		)"
 
-		if [ -z "${CLOUDFLARE_DNS_ZONE_ID#null}" ]; then
-			printError "'CLOUDFLARE_DNS_ZONE_ID' is null."
+		if [ -z "${CF_ZONE_ID#null}" ]; then
+			printError "'CF_ZONE_ID' is null."
 			exit 1
 		else
-			printWarn "'CLOUDFLARE_DNS_ZONE_ID' is not defined, set its value to \"${CLOUDFLARE_DNS_ZONE_ID:?}\" to avoid extra API requests."
+			printWarn "'CF_ZONE_ID' is not defined, set its value to \"${CF_ZONE_ID:?}\" to avoid extra API requests."
 		fi
 	fi
 
-	# Retrieve CLOUDFLARE_DNS_RECORD_ID if not defined.
-	if [ -z "${CLOUDFLARE_DNS_RECORD_ID:-}" ]; then
-		CLOUDFLARE_DNS_RECORD_ID=$(
-			curl "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_DNS_ZONE_ID:?}/dns_records?type=A&name=${CLOUDFLARE_DNS_RECORD:?}" \
-				-X 'GET' -sSf --proto '=https' --tlsv1.2 \
-				-H "Authorization: Bearer ${CLOUDFLARE_TOKEN:?}" \
+	# Retrieve CF_DNS_RECORD_ID if not defined.
+	if [ -z "${CF_DNS_RECORD_ID:-}" ]; then
+		CF_DNS_RECORD_ID="$(
+			curl "${CF_ENDPOINT:?}/zones/${CF_ZONE_ID:?}/dns_records?type=A&name=${CF_DNS_RECORD_NAME:?}" \
+				-X 'GET' -sSf --proto '=https' --tlsv1.3 \
+				-H "Authorization: Bearer ${CF_ZONE_API_TOKEN:?}" \
 				-H 'Content-Type: application/json' \
 			| jq -r '.result[0].id'
-		)
+		)"
 
-		if [ -z "${CLOUDFLARE_DNS_RECORD_ID#null}" ]; then
-			printError "'CLOUDFLARE_DNS_RECORD_ID' is null."
+		if [ -z "${CF_DNS_RECORD_ID#null}" ]; then
+			printError "'CF_DNS_RECORD_ID' is null."
 			exit 1
 		else
-			printWarn "'CLOUDFLARE_DNS_RECORD_ID' is not defined, set its value to \"${CLOUDFLARE_DNS_RECORD_ID:?}\" to avoid extra API requests."
+			printWarn "'CF_DNS_RECORD_ID' is not defined, set its value to \"${CF_DNS_RECORD_ID:?}\" to avoid extra API requests."
 		fi
 	fi
 
-	# Update DNS Record.
-	curl "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_DNS_ZONE_ID:?}/dns_records/${CLOUDFLARE_DNS_RECORD_ID:?}" \
-		-X 'PUT' -sSf --proto '=https' --tlsv1.2 \
-		-H "Authorization: Bearer ${CLOUDFLARE_TOKEN:?}" \
+	# Update DNS record.
+	curl "${CF_ENDPOINT:?}/zones/${CF_ZONE_ID:?}/dns_records/${CF_DNS_RECORD_ID:?}" \
+		-X 'PUT' -sSf --proto '=https' --tlsv1.3 \
+		-H "Authorization: Bearer ${CF_DNS_API_TOKEN:?}" \
 		-H 'Content-Type: application/json' \
-		-d '{"type": "A", "name": "'"${CLOUDFLARE_DNS_RECORD:?}"'", "content": "'"${CURR_IP:?}"'", "ttl": 1, "proxied": false}' \
+		-d '{"type": "A", "name": "'"${CF_DNS_RECORD_NAME:?}"'", "content": "'"${CURR_IP:?}"'", "ttl": 120, "proxied": false}' \
 		-o /dev/null
 
-	# Set new IP address.
-	printf -- '%s\n' "${CURR_IP:?}" > "${PREV_IP_FILE:?}"
+	# Purge DNS cache.
+	curl "https://1.1.1.1/api/v1/purge?type=A&domain=${CF_DNS_RECORD_NAME:?}" \
+		-X 'POST' -sSf --proto '=https' --tlsv1.3 \
+		-o /dev/null
+
 	printInfo "Updated IP address to \"${CURR_IP:?}\"."
 }
 
-main "$@"
+main "${@-}"

@@ -1,10 +1,10 @@
 [Unit]
 Description=Cloudflare DDNS
-Requires=network-online.target
 After=network-online.target
+Wants=network-online.target
 
 [Timer]
-OnCalendar=*:0/5
+OnCalendar=*:0/2
 Unit=cloudflare-ddns.service
 
 [Install]
