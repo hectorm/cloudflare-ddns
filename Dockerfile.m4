@@ -19,7 +19,7 @@ RUN export DEBIAN_FRONTEND=noninteractive \
 
 # Copy script
 COPY --chown=root:root ./cloudflare-ddns /usr/bin/cloudflare-ddns
-RUN chmod 0755 /usr/bin/cloudflare-ddns
+RUN find /usr/bin/cloudflare-ddns -type f -not -perm 0755 -exec chmod 0755 '{}' ';'
 
 # Create unprivileged user
 RUN useradd -u 100000 -g 0 -MN ddns
