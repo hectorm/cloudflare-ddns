@@ -25,5 +25,4 @@ RUN find /usr/bin/cloudflare-ddns -type f -not -perm 0755 -exec chmod 0755 '{}' 
 RUN useradd -u 100000 -g 0 -MN ddns
 USER 100000:0
 
-ENTRYPOINT ["/bin/sh"]
-CMD ["-c", "while true; do /usr/bin/cloudflare-ddns; sleep 120; done"]
+CMD ["/bin/sh", "-c", "while true; do /usr/bin/cloudflare-ddns; sleep 120; done"]
