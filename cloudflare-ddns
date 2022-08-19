@@ -18,6 +18,7 @@ CF_ZONE_ID="${CF_ZONE_ID:-}"
 
 CF_DNS_RECORD_NAME="${CF_DNS_RECORD_NAME:?}"
 CF_DNS_RECORD_ID="${CF_DNS_RECORD_ID:-}"
+CF_DNS_RECORD_TTL="${CF_DNS_RECORD_TTL:-60}"
 
 printInfo() { [ -t 1 ] && printf '\033[0m[\033[1;32mINFO\033[0m] %s\n' "$@" || printf '[INFO] %s\n' "$@"; }
 printWarn() { [ -t 1 ] && printf '\033[0m[\033[1;33mWARN\033[0m] %s\n' "$@" >&2 || printf '[WARN] %s\n' "$@" >&2; }
@@ -84,8 +85,9 @@ main() {
 		--header 'Content-Type: application/json' \
 		--data "$(jq -cn \
 			--arg name "${CF_DNS_RECORD_NAME:?}" \
+			--arg ttl "${CF_DNS_RECORD_TTL:?}" \
 			--arg content "${CURR_IP:?}" \
-			'{ "type": "A", "name": $name, "content": $content, "ttl": 120, "proxied": false }' \
+			'{ "type": "A", "name": $name, "ttl": $ttl, "content": $content, "proxied": false }' \
 		)" \
 		--output /dev/null
 
