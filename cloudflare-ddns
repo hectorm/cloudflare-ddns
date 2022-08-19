@@ -16,9 +16,18 @@ CF_ZONE_API_TOKEN="${CF_ZONE_API_TOKEN:-${CF_API_TOKEN:-}}"
 CF_ZONE_NAME="${CF_ZONE_NAME:?}"
 CF_ZONE_ID="${CF_ZONE_ID:-}"
 
+CF_DNS_RECORD_TYPE="${CF_DNS_RECORD_TYPE:-A}"
 CF_DNS_RECORD_NAME="${CF_DNS_RECORD_NAME:?}"
 CF_DNS_RECORD_ID="${CF_DNS_RECORD_ID:-}"
 CF_DNS_RECORD_TTL="${CF_DNS_RECORD_TTL:-60}"
+
+if [ "${CF_DNS_RECORD_TYPE:?}" = 'A' ]; then
+	CF_DNS_RESOLVER_IP="${CF_DNS_RESOLVER_IP:-1.1.1.1}"
+	CF_DNS_RESOLVER_ENDPOINT="${CF_DNS_RESOLVER_ENDPOINT:-https://${CF_DNS_RESOLVER_IP:?}/api/v1}"
+elif [ "${CF_DNS_RECORD_TYPE:?}" = 'AAAA' ]; then
+	CF_DNS_RESOLVER_IP="${CF_DNS_RESOLVER_IP:-2606:4700:4700::1111}"
+	CF_DNS_RESOLVER_ENDPOINT="${CF_DNS_RESOLVER_ENDPOINT:-https://[${CF_DNS_RESOLVER_IP:?}]/api/v1}"
+fi
 
 printInfo() { [ -t 1 ] && printf '\033[0m[\033[1;32mINFO\033[0m] %s\n' "$@" || printf '[INFO] %s\n' "$@"; }
 printWarn() { [ -t 1 ] && printf '\033[0m[\033[1;33mWARN\033[0m] %s\n' "$@" >&2 || printf '[WARN] %s\n' "$@" >&2; }
@@ -27,11 +36,11 @@ printError() { [ -t 1 ] && printf '\033[0m[\033[1;31mERROR\033[0m] %s\n' "$@" >&
 main() {
 	# Get current and previous IP address.
 	if command -v kdig >/dev/null 2>&1; then
-		CURR_IP="$(kdig @1.1.1.1 +tls-ca +tls-host=cloudflare-dns.com whoami.cloudflare CH TXT +short | tr -d '"')"
-		PREV_IP="$(kdig @1.1.1.1 +tls-ca +tls-host=cloudflare-dns.com "${CF_DNS_RECORD_NAME:?}" A +short | tr -d '"')"
+		CURR_IP="$(kdig @"${CF_DNS_RESOLVER_IP:?}" +tls-ca +tls-host=cloudflare-dns.com whoami.cloudflare CH TXT +short | tr -d '"')"
+		PREV_IP="$(kdig @"${CF_DNS_RESOLVER_IP:?}" +tls-ca +tls-host=cloudflare-dns.com "${CF_DNS_RECORD_NAME:?}" "${CF_DNS_RECORD_TYPE:?}" +short | tr -d '"')"
 	else
-		CURR_IP="$(dig @1.1.1.1 whoami.cloudflare CH TXT +short | tr -d '"')"
-		PREV_IP="$(dig @1.1.1.1 "${CF_DNS_RECORD_NAME:?}" A +short | tr -d '"')"
+		CURR_IP="$(dig @"${CF_DNS_RESOLVER_IP:?}" whoami.cloudflare CH TXT +short | tr -d '"')"
+		PREV_IP="$(dig @"${CF_DNS_RESOLVER_IP:?}" "${CF_DNS_RECORD_NAME:?}" "${CF_DNS_RECORD_TYPE:?}" +short | tr -d '"')"
 	fi
 
 	# If current and previous IP address match, no update is needed.
@@ -65,7 +74,7 @@ main() {
 				--request 'GET' --get --globoff --silent --show-error --fail --proto '=https' --tlsv1.3 \
 				--header "Authorization: Bearer ${CF_ZONE_API_TOKEN:?}" \
 				--header 'Content-Type: application/json' \
-				--data-urlencode 'type=A' \
+				--data-urlencode "type=${CF_DNS_RECORD_TYPE:?}" \
 				--data-urlencode "name=${CF_DNS_RECORD_NAME:?}" \
 			| jq -r '.result[0].id'
 		)"
@@ -84,17 +93,18 @@ main() {
 		--header "Authorization: Bearer ${CF_DNS_API_TOKEN:?}" \
 		--header 'Content-Type: application/json' \
 		--data "$(jq -cn \
+			--arg type "${CF_DNS_RECORD_TYPE:?}" \
 			--arg name "${CF_DNS_RECORD_NAME:?}" \
 			--arg ttl "${CF_DNS_RECORD_TTL:?}" \
 			--arg content "${CURR_IP:?}" \
-			'{ "type": "A", "name": $name, "ttl": $ttl, "content": $content, "proxied": false }' \
+			'{ "type": $type, "name": $name, "ttl": $ttl, "content": $content, "proxied": false }' \
 		)" \
 		--output /dev/null
 
 	# Purge DNS cache.
-	curl "https://1.1.1.1/api/v1/purge" \
+	curl "${CF_DNS_RESOLVER_ENDPOINT:?}/purge" \
 		--request 'POST' --get --globoff --silent --show-error --fail --proto '=https' --tlsv1.3 \
-		--data-urlencode 'type=A' \
+		--data-urlencode "type=${CF_DNS_RECORD_TYPE:?}" \
 		--data-urlencode "domain=${CF_DNS_RECORD_NAME:?}" \
 		--output /dev/null
 
