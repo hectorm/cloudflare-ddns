@@ -1,7 +1,7 @@
 m4_changequote([[, ]])
 
 ##################################################
-## "cloudflare-ddns" stage
+## "main" stage
 ##################################################
 
 m4_ifdef([[CROSS_ARCH]], [[FROM docker.io/CROSS_ARCH/ubuntu:22.04]], [[FROM docker.io/ubuntu:22.04]]) AS main
@@ -25,4 +25,4 @@ RUN find /usr/bin/cloudflare-ddns -type f -not -perm 0755 -exec chmod 0755 '{}' 
 RUN useradd -u 100000 -g 0 -MN ddns
 USER 100000:0
 
-CMD ["/bin/sh", "-c", "while true; do /usr/bin/cloudflare-ddns; sleep 120; done"]
+CMD ["/bin/sh", "-c", "while true; do /usr/bin/cloudflare-ddns; sleep 60; done"]
