@@ -82,7 +82,11 @@ main() {
 		--request 'PUT' --globoff --silent --show-error --fail --proto '=https' --tlsv1.3 \
 		--header "Authorization: Bearer ${CF_DNS_API_TOKEN:?}" \
 		--header 'Content-Type: application/json' \
-		--data '{"type": "A", "name": "'"${CF_DNS_RECORD_NAME:?}"'", "content": "'"${CURR_IP:?}"'", "ttl": 120, "proxied": false}' \
+		--data "$(jq -cn \
+			--arg name "${CF_DNS_RECORD_NAME:?}" \
+			--arg content "${CURR_IP:?}" \
+			'{ "type": "A", "name": $name, "content": $content, "ttl": 120, "proxied": false }' \
+		)" \
 		--output /dev/null
 
 	# Purge DNS cache.
