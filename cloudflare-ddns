@@ -41,10 +41,11 @@ main() {
 	# Retrieve CF_ZONE_ID if not defined.
 	if [ -z "${CF_ZONE_ID:-}" ]; then
 		CF_ZONE_ID="$(
-			curl "${CF_ENDPOINT:?}/zones?name=${CF_ZONE_NAME:?}" \
-				--request 'GET' --globoff --silent --show-error --fail --proto '=https' --tlsv1.3 \
+			curl "${CF_ENDPOINT:?}/zones" \
+				--request 'GET' --get --globoff --silent --show-error --fail --proto '=https' --tlsv1.3 \
 				--header "Authorization: Bearer ${CF_ZONE_API_TOKEN:?}" \
 				--header 'Content-Type: application/json' \
+				--data-urlencode "name=${CF_ZONE_NAME:?}" \
 			| jq -r '.result[0].id'
 		)"
 
@@ -59,10 +60,12 @@ main() {
 	# Retrieve CF_DNS_RECORD_ID if not defined.
 	if [ -z "${CF_DNS_RECORD_ID:-}" ]; then
 		CF_DNS_RECORD_ID="$(
-			curl "${CF_ENDPOINT:?}/zones/${CF_ZONE_ID:?}/dns_records?type=A&name=${CF_DNS_RECORD_NAME:?}" \
-				--request 'GET' --globoff --silent --show-error --fail --proto '=https' --tlsv1.3 \
+			curl "${CF_ENDPOINT:?}/zones/${CF_ZONE_ID:?}/dns_records" \
+				--request 'GET' --get --globoff --silent --show-error --fail --proto '=https' --tlsv1.3 \
 				--header "Authorization: Bearer ${CF_ZONE_API_TOKEN:?}" \
 				--header 'Content-Type: application/json' \
+				--data-urlencode 'type=A' \
+				--data-urlencode "name=${CF_DNS_RECORD_NAME:?}" \
 			| jq -r '.result[0].id'
 		)"
 
@@ -83,8 +86,10 @@ main() {
 		--output /dev/null
 
 	# Purge DNS cache.
-	curl "https://1.1.1.1/api/v1/purge?type=A&domain=${CF_DNS_RECORD_NAME:?}" \
-		--request 'POST' --globoff --silent --show-error --fail --proto '=https' --tlsv1.3 \
+	curl "https://1.1.1.1/api/v1/purge" \
+		--request 'POST' --get --globoff --silent --show-error --fail --proto '=https' --tlsv1.3 \
+		--data-urlencode 'type=A' \
+		--data-urlencode "domain=${CF_DNS_RECORD_NAME:?}" \
 		--output /dev/null
 
 	printInfo "Updated IP address to \"${CURR_IP:?}\"."
