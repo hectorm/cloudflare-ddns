@@ -42,7 +42,7 @@ main() {
 	if [ -z "${CF_ZONE_ID:-}" ]; then
 		CF_ZONE_ID="$(
 			curl "${CF_ENDPOINT:?}/zones?name=${CF_ZONE_NAME:?}" \
-				-X 'GET' -sSf --proto '=https' --tlsv1.3 \
+				-X 'GET' -sSf --proto '=https' --tlsv1.3 --globoff \
 				-H "Authorization: Bearer ${CF_ZONE_API_TOKEN:?}" \
 				-H 'Content-Type: application/json' \
 			| jq -r '.result[0].id'
@@ -60,7 +60,7 @@ main() {
 	if [ -z "${CF_DNS_RECORD_ID:-}" ]; then
 		CF_DNS_RECORD_ID="$(
 			curl "${CF_ENDPOINT:?}/zones/${CF_ZONE_ID:?}/dns_records?type=A&name=${CF_DNS_RECORD_NAME:?}" \
-				-X 'GET' -sSf --proto '=https' --tlsv1.3 \
+				-X 'GET' -sSf --proto '=https' --tlsv1.3 --globoff \
 				-H "Authorization: Bearer ${CF_ZONE_API_TOKEN:?}" \
 				-H 'Content-Type: application/json' \
 			| jq -r '.result[0].id'
@@ -76,7 +76,7 @@ main() {
 
 	# Update DNS record.
 	curl "${CF_ENDPOINT:?}/zones/${CF_ZONE_ID:?}/dns_records/${CF_DNS_RECORD_ID:?}" \
-		-X 'PUT' -sSf --proto '=https' --tlsv1.3 \
+		-X 'PUT' -sSf --proto '=https' --tlsv1.3 --globoff \
 		-H "Authorization: Bearer ${CF_DNS_API_TOKEN:?}" \
 		-H 'Content-Type: application/json' \
 		-d '{"type": "A", "name": "'"${CF_DNS_RECORD_NAME:?}"'", "content": "'"${CURR_IP:?}"'", "ttl": 120, "proxied": false}' \
@@ -84,7 +84,7 @@ main() {
 
 	# Purge DNS cache.
 	curl "https://1.1.1.1/api/v1/purge?type=A&domain=${CF_DNS_RECORD_NAME:?}" \
-		-X 'POST' -sSf --proto '=https' --tlsv1.3 \
+		-X 'POST' -sSf --proto '=https' --tlsv1.3 --globoff \
 		-o /dev/null
 
 	printInfo "Updated IP address to \"${CURR_IP:?}\"."
