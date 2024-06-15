@@ -95,7 +95,7 @@ main() {
 		--data "$(jq -cn \
 			--arg type "${CF_DNS_RECORD_TYPE:?}" \
 			--arg name "${CF_DNS_RECORD_NAME:?}" \
-			--arg ttl "${CF_DNS_RECORD_TTL:?}" \
+			--argjson ttl "${CF_DNS_RECORD_TTL:?}" \
 			--arg content "${CURR_IP:?}" \
 			'{ "type": $type, "name": $name, "ttl": $ttl, "content": $content, "proxied": false }' \
 		)" \
