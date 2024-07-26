@@ -21,7 +21,9 @@ COPY --chown=root:root ./cloudflare-ddns /usr/bin/cloudflare-ddns
 RUN find /usr/bin/cloudflare-ddns -type f -not -perm 0755 -exec chmod 0755 '{}' ';'
 
 # Create unprivileged user
-RUN useradd -u 100000 -g 0 -MN ddns
-USER 100000:0
+RUN userdel -rf "$(id -nu 1000)" && useradd -u 1000 -g 0 -s "$(command -v bash)" -m ddns
+
+# Drop root privileges
+USER ddns:root
 
 CMD ["/bin/sh", "-euc", "while true; do /usr/bin/cloudflare-ddns; sleep \"${CF_CHECK_INTERVAL:-60}\"; done"]
